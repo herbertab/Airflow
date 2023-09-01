@@ -27,6 +27,7 @@ def clean_data():
     df = pd.read_csv(Variable.get('file_path_in'), encoding='latin1')
     df = CleanSampleSuperstore(df)
     df.to_json(Variable.get('file_path_out'))
+    df.to_csv(Variable.get('file_path_cleaned'), encoding='latin1')
 
 def get_data(**kwargs):
     with open(Variable.get('file_path_out')) as f:
@@ -44,11 +45,18 @@ def create_dCustomer():
         'State': 'VARCHAR(50)',
         'Region': 'VARCHAR(30)'
     }    
-
     db.create_table('dCustomer', **fields)
+
+def populate_dCustomer():
+    db = MySqlDB('mysql', 'airflow', 'airflow', 'airflow')
+    df = pd.read_csv(Variable.get('file_path_cleaned'), encoding='latin1')
+    df = df[['Customer ID', 'Customer Name', 'Segment', 'Country', 'City', 'State', 'Region']]
+    db.insert_data('dCustomer', df)
+
 
 clean_data_task = PythonOperator(task_id="clean_data_task", python_callable=clean_data, dag=dag)
 get_data_task = PythonOperator(task_id="get_data_task", python_callable=get_data, provide_context=True, dag=dag)
 create_dCustomer_table_task = PythonOperator(task_id="create_dCustomer_table_task", python_callable=create_dCustomer, dag=dag)
+populate_dCustomer_task = PythonOperator(task_id="populate_dCustomer_task", python_callable=populate_dCustomer, dag=dag)
 
-clean_data_task >> get_data_task >> create_dCustomer_table_task
+clean_data_task >> get_data_task >> create_dCustomer_table_task >> populate_dCustomer_task
